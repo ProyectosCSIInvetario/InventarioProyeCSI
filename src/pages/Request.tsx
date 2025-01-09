@@ -19,22 +19,22 @@ export default function Request({ inventoryItems, setItems }: Props) {
   const handleAddToList = () => {
     // Verificar si falta algún campo
     if (!code || !location || quantity < 1) {
-        showErrorPopup('Por favor complete todos los campos correctamente.');
-        return;
+      showErrorPopup('Por favor complete todos los campos correctamente.');
+      return;
     }
 
     // Verificar si el producto existe en el inventario
     const existingItem = inventoryItems.find(item => item.code === code);
     if (!existingItem) {
-        showErrorPopup('El producto no existe en el inventario.');
-        return;
+      showErrorPopup('El producto no existe en el inventario.');
+      return;
     }
 
     const newItem: RequestItem = {
-        code,
-        item: existingItem,
-        quantity,
-        location,
+      code,
+      item: existingItem,
+      quantity,
+      location,
     };
 
     // Actualizar el estado con el nuevo ítem
@@ -42,43 +42,43 @@ export default function Request({ inventoryItems, setItems }: Props) {
     setCode('');
     setLocation('');
     setQuantity(1);
-};
+  };
 
-// Función para mostrar un error si algún campo falta o el producto no existe
-const showErrorPopup = (message: string) => {
+  // Función para mostrar un error si algún campo falta o el producto no existe
+  const showErrorPopup = (message: string) => {
     const overlay = document.createElement('div');
     overlay.classList.add('fixed', 'inset-0', 'bg-black', 'bg-opacity-50', 'flex', 'justify-center', 'items-center');
-    
+
     const popup = document.createElement('div');
     popup.classList.add('bg-white', 'p-6', 'rounded-lg', 'max-w-lg', 'w-full', 'max-h-[80vh]', 'overflow-auto');
-    
+
     const title = document.createElement('h2');
     title.classList.add('text-xl', 'font-semibold', 'mb-4');
     title.textContent = 'Error';
-    
+
     const errorMessage = document.createElement('p');
     errorMessage.classList.add('mb-4');
     errorMessage.textContent = message;
-    
+
     const closeButton = document.createElement('button');
     closeButton.classList.add('bg-blue-500', 'text-white', 'px-4', 'py-2', 'rounded', 'hover:bg-blue-400');
     closeButton.textContent = 'Cerrar';
-    
+
     closeButton.onclick = () => {
-        document.body.removeChild(overlay); // Cerrar la ventana emergente
+      document.body.removeChild(overlay); // Cerrar la ventana emergente
     };
 
     // Añadir todo al popup
     popup.appendChild(title);
     popup.appendChild(errorMessage);
     popup.appendChild(closeButton);
-    
+
     // Añadir el popup al overlay
     overlay.appendChild(popup);
-    
+
     // Añadir la superposición al cuerpo del documento
     document.body.appendChild(overlay);
-};
+  };
 
 
   // Función para eliminar un producto de la lista
@@ -89,182 +89,182 @@ const showErrorPopup = (message: string) => {
 
   const handleFinalize = async () => {
     try {
-        // Crear un conjunto de productos únicos
-        const uniqueProducts = [...new Set(items.map(item => item.code))];
+      // Crear un conjunto de productos únicos
+      const uniqueProducts = [...new Set(items.map(item => item.code))];
 
-        for (const code of uniqueProducts) {
-            // Calcular la cantidad total solicitada para ese producto
-            const totalRequestedQuantity = items
-                .filter(item => item.code === code)
-                .reduce((sum, item) => sum + item.quantity, 0);
+      for (const code of uniqueProducts) {
+        // Calcular la cantidad total solicitada para ese producto
+        const totalRequestedQuantity = items
+          .filter(item => item.code === code)
+          .reduce((sum, item) => sum + item.quantity, 0);
 
-            // Obtener el inventario actual del producto
-            const { data: inventoryData, error: fetchError } = await supabase
-                .from('inventory')
-                .select('available_quantity, in_use')
-                .eq('code', code)
-                .single();
+        // Obtener el inventario actual del producto
+        const { data: inventoryData, error: fetchError } = await supabase
+          .from('inventory')
+          .select('available_quantity, in_use')
+          .eq('code', code)
+          .single();
 
-            if (fetchError) {
-                console.error('Error obteniendo inventario:', fetchError);
-                showErrorPopupFinalize('Error al obtener inventario.');
-                return;
-            }
-
-            const { available_quantity, in_use } = inventoryData;
-
-            // Actualizar inventario UNA SOLA VEZ por producto
-            const { error: inventoryError } = await supabase
-                .from('inventory')
-                .update({
-                    available_quantity: available_quantity - totalRequestedQuantity,
-                    in_use: in_use + totalRequestedQuantity
-                })
-                .eq('code', code);
-
-            if (inventoryError) {
-                console.error('Error actualizando inventario:', inventoryError);
-                showErrorPopupFinalize('Error al actualizar el inventario.');
-                return;
-            }
-
-            // Insertar cada ubicación individualmente
-            const requestedItems = items.filter(item => item.code === code);
-            for (const requestedItem of requestedItems) {
-                const { error: locationError } = await supabase
-                    .from('locations')
-                    .insert({
-                        inventory_code: requestedItem.code,
-                        place: requestedItem.location,
-                        quantity: requestedItem.quantity
-                    });
-
-                if (locationError) {
-                    console.error('Error registrando ubicación:', locationError);
-                    showErrorPopupFinalize('Error al registrar la ubicación.');
-                    return;
-                }
-            }
+        if (fetchError) {
+          console.error('Error obteniendo inventario:', fetchError);
+          showErrorPopupFinalize('Error al obtener inventario.');
+          return;
         }
 
-        await generatePDF();
-        showSuccessPopup('Productos actualizados y PDF generado con éxito.');
+        const { available_quantity, in_use } = inventoryData;
 
-        setItems(prev => prev.map(item => {
-            const requestedItem = items.find(i => i.code === item.code);
-            if (requestedItem) {
-                return {
-                    ...item,
-                    availableQuantity: item.availableQuantity - requestedItem.quantity,
-                    inUse: item.inUse + requestedItem.quantity
-                };
-            }
-            return item;
-        }));
+        // Actualizar inventario UNA SOLA VEZ por producto
+        const { error: inventoryError } = await supabase
+          .from('inventory')
+          .update({
+            available_quantity: available_quantity - totalRequestedQuantity,
+            in_use: in_use + totalRequestedQuantity
+          })
+          .eq('code', code);
+
+        if (inventoryError) {
+          console.error('Error actualizando inventario:', inventoryError);
+          showErrorPopupFinalize('Error al actualizar el inventario.');
+          return;
+        }
+
+        // Insertar cada ubicación individualmente
+        const requestedItems = items.filter(item => item.code === code);
+        for (const requestedItem of requestedItems) {
+          const { error: locationError } = await supabase
+            .from('locations')
+            .insert({
+              inventory_code: requestedItem.code,
+              place: requestedItem.location,
+              quantity: requestedItem.quantity
+            });
+
+          if (locationError) {
+            console.error('Error registrando ubicación:', locationError);
+            showErrorPopupFinalize('Error al registrar la ubicación.');
+            return;
+          }
+        }
+      }
+
+      await generatePDF();
+      showSuccessPopup('Productos actualizados y PDF generado con éxito.');
+
+      setItems(prev => prev.map(item => {
+        const requestedItem = items.find(i => i.code === item.code);
+        if (requestedItem) {
+          return {
+            ...item,
+            availableQuantity: item.availableQuantity - requestedItem.quantity,
+            inUse: item.inUse + requestedItem.quantity
+          };
+        }
+        return item;
+      }));
 
     } catch (error) {
-        console.error('Error en la finalización:', error);
-        showErrorPopup('Ocurrió un error inesperado.');
+      console.error('Error en la finalización:', error);
+      showErrorPopup('Ocurrió un error inesperado.');
     }
-};
+  };
 
-// Función para mostrar una ventana emergente de error
-const showErrorPopupFinalize = (message: string) => {
+  // Función para mostrar una ventana emergente de error
+  const showErrorPopupFinalize = (message: string) => {
     const overlay = document.createElement('div');
     overlay.classList.add('fixed', 'inset-0', 'bg-black', 'bg-opacity-50', 'flex', 'justify-center', 'items-center');
-    
+
     const popup = document.createElement('div');
     popup.classList.add('bg-white', 'p-6', 'rounded-lg', 'max-w-lg', 'w-full', 'max-h-[80vh]', 'overflow-auto');
-    
+
     const title = document.createElement('h2');
     title.classList.add('text-xl', 'font-semibold', 'mb-4');
     title.textContent = 'Error';
-    
+
     const errorMessage = document.createElement('p');
     errorMessage.classList.add('mb-4');
     errorMessage.textContent = message;
-    
+
     const closeButton = document.createElement('button');
     closeButton.classList.add('bg-blue-500', 'text-white', 'px-4', 'py-2', 'rounded', 'hover:bg-blue-400');
     closeButton.textContent = 'Cerrar';
-    
+
     closeButton.onclick = () => {
-        document.body.removeChild(overlay); // Cerrar la ventana emergente
+      document.body.removeChild(overlay); // Cerrar la ventana emergente
     };
 
     // Añadir todo al popup
     popup.appendChild(title);
     popup.appendChild(errorMessage);
     popup.appendChild(closeButton);
-    
+
     // Añadir el popup al overlay
     overlay.appendChild(popup);
-    
+
     // Añadir la superposición al cuerpo del documento
     document.body.appendChild(overlay);
-};
+  };
 
-// Función para mostrar una ventana emergente de éxito
-const showSuccessPopup = (message: string) => {
+  // Función para mostrar una ventana emergente de éxito
+  const showSuccessPopup = (message: string) => {
     const overlay = document.createElement('div');
     overlay.classList.add('fixed', 'inset-0', 'bg-black', 'bg-opacity-50', 'flex', 'justify-center', 'items-center');
-    
+
     const popup = document.createElement('div');
     popup.classList.add('bg-white', 'p-6', 'rounded-lg', 'max-w-lg', 'w-full', 'max-h-[80vh]', 'overflow-auto');
-    
+
     const title = document.createElement('h2');
     title.classList.add('text-xl', 'font-semibold', 'mb-4');
     title.textContent = 'Éxito';
-    
+
     const successMessage = document.createElement('p');
     successMessage.classList.add('mb-4');
     successMessage.textContent = message;
-    
+
     const closeButton = document.createElement('button');
     closeButton.classList.add('bg-green-500', 'text-white', 'px-4', 'py-2', 'rounded', 'hover:bg-green-400');
     closeButton.textContent = 'Cerrar';
-    
+
     closeButton.onclick = () => {
-        document.body.removeChild(overlay); // Cerrar la ventana emergente
+      document.body.removeChild(overlay); // Cerrar la ventana emergente
     };
 
     // Añadir todo al popup
     popup.appendChild(title);
     popup.appendChild(successMessage);
     popup.appendChild(closeButton);
-    
+
     // Añadir el popup al overlay
     overlay.appendChild(popup);
-    
+
     // Añadir la superposición al cuerpo del documento
     document.body.appendChild(overlay);
-};
+  };
 
 
 
 
-const generatePDF = async () => { 
-  console.log('Generando PDF...');
-  const doc = new jsPDF();
+  const generatePDF = async () => {
+    console.log('Generando PDF...');
+    const doc = new jsPDF();
 
-  try {
+    try {
       // Definir márgenes
-      const marginTop = 20; 
-      const marginBottom = 20; 
+      const marginTop = 20;
+      const marginBottom = 20;
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
       // Logo de la parte superior
       const templateURL = '/img/ProyectosCSI.jpg';
       const image = await fetch(templateURL)
-          .then(res => res.blob())
-          .then(blob => {
-              return new Promise(resolve => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result);
-                  reader.readAsDataURL(blob);
-              });
+        .then(res => res.blob())
+        .then(blob => {
+          return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
           });
+        });
 
       console.log('Imagen cargada con éxito.');
 
@@ -273,7 +273,7 @@ const generatePDF = async () => {
 
       // Función para agregar la imagen de fondo
       const addBackgroundImage = () => {
-          doc.addImage(image as string, 'JPG', 0, 0, pageWidth, pageHeight);
+        doc.addImage(image as string, 'JPG', 0, 0, pageWidth, pageHeight);
       };
 
       // Agregar imagen al inicio
@@ -283,35 +283,35 @@ const generatePDF = async () => {
       doc.setFontSize(14);
 
       // Posición después del logo
-      let yPosition = marginTop + logoHeight; 
+      let yPosition = marginTop + logoHeight;
 
       // Colocar el título
       doc.text('Lista de Productos Solicitados', 20, yPosition);
 
       const tableData = items.map(item => [
-          item.code,
-          item.item.description,
-          item.quantity,
-          item.location
+        item.code,
+        item.item.description,
+        item.quantity,
+        item.location
       ]);
 
       // Ajustar la tabla y márgenes
       const startY = yPosition + 10;
 
       const generateTable = (startY) => {
-          doc.autoTable({
-              head: [['Código', 'Descripción', 'Cantidad', 'Ubicación']],
-              body: tableData,
-              startY: startY,
-              margin: { top: 0 }, 
-              didDrawPage: (data) => {
-                  if (data.cursor.y + 40 > pageHeight - marginBottom) {
-                      doc.addPage(); 
-                      addBackgroundImage(); 
-                      doc.text('Lista de Productos Solicitados', 20, marginTop + 40); 
-                  }
-              },
-          });
+        doc.autoTable({
+          head: [['Código', 'Descripción', 'Cantidad', 'Ubicación']],
+          body: tableData,
+          startY: startY,
+          margin: { top: 0 },
+          didDrawPage: (data) => {
+            if (data.cursor.y + 40 > pageHeight - marginBottom) {
+              doc.addPage();
+              addBackgroundImage();
+              doc.text('Lista de Productos Solicitados', 20, marginTop + 40);
+            }
+          },
+        });
       };
 
       // Generar la tabla
@@ -326,10 +326,10 @@ const generatePDF = async () => {
 
       console.log('PDF generado correctamente.');
       doc.save('solicitud_productos.pdf');
-  } catch (error) {
+    } catch (error) {
       console.error('Error generando el PDF:', error);
-  }
-};
+    }
+  };
 
 
   return (
