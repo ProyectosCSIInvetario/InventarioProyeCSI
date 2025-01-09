@@ -13,7 +13,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
         <div className="flex items-center">
     <Link to="/" className="flex items-center space-x-2">
-        <img src="public/img/logo_csi.png" alt="Logo de Proyectos CSI" className="h-14 w-50" />
+        <img src="img/logo_csi.png" alt="Logo de Proyectos CSI" className="h-14 w-50" />
         <span className="text-xl font-bold text-gray-800">Proyectos CSI</span>
     </Link>
 </div>
