@@ -288,6 +288,17 @@ export default function Request({ inventoryItems, setItems }: Props) {
       // Colocar el título
       doc.text('Lista de Productos Solicitados', 20, yPosition);
 
+       // Obtener fecha y hora actual
+       const now = new Date();
+       const dateString = now.toLocaleDateString(); // Formato de fecha local
+       const timeString = now.toLocaleTimeString(); // Formato de hora local
+
+       // Incrementar la posición vertical para la fecha y hora
+       yPosition += 10;
+       doc.setFontSize(12); // Reducir el tamaño de fuente para la fecha y hora
+       doc.text(`Fecha: ${dateString} Hora: ${timeString}`, 20, yPosition);
+
+
       const tableData = items.map(item => [
         item.code,
         item.item.description,
