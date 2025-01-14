@@ -96,6 +96,7 @@ export default function Request({ inventoryItems, setItems }: Props) {
                 .filter(item => item.code === code)
                 .reduce((sum, item) => sum + item.quantity, 0);
 
+            // Obtener el inventario actual del producto
             const { data: inventoryData, error: fetchError } = await supabase
                 .from('inventory')
                 .select('available_quantity, in_use')
@@ -109,6 +110,13 @@ export default function Request({ inventoryItems, setItems }: Props) {
 
             const { available_quantity, in_use } = inventoryData;
 
+            // No permitir solicitar más de lo disponible
+            if (totalRequestedQuantity > available_quantity) {
+                showErrorPopupFinalize(`No puedes solicitar más productos de los disponibles (${available_quantity} disponibles).`);
+                return;
+            }
+
+            // Actualizar inventario solo si la validación pasa
             const { error: inventoryError } = await supabase
                 .from('inventory')
                 .update({
@@ -125,7 +133,7 @@ export default function Request({ inventoryItems, setItems }: Props) {
             // Procesar ubicaciones correctamente
             const requestedItems = items.filter(item => item.code === code);
             for (const requestedItem of requestedItems) {
-                // Comprobación precisa si la ubicación ya existe
+                // Comprobación si la ubicación ya existe
                 const { data: existingLocation, error: locationFetchError } = await supabase
                     .from('locations')
                     .select('quantity')
@@ -138,7 +146,7 @@ export default function Request({ inventoryItems, setItems }: Props) {
                 }
 
                 if (existingLocation.length > 0) {
-                    // Si existe, actualizar la cantidad sumando
+                    // Actualizar cantidad si la ubicación ya existe
                     const updatedQuantity = existingLocation[0].quantity + requestedItem.quantity;
                     const { error: locationUpdateError } = await supabase
                         .from('locations')
@@ -151,7 +159,7 @@ export default function Request({ inventoryItems, setItems }: Props) {
                         return;
                     }
                 } else {
-                    // Si no existe, crear una nueva entrada
+                    // Crear una nueva ubicación si no existe
                     const { error: locationInsertError } = await supabase
                         .from('locations')
                         .insert({
@@ -187,7 +195,8 @@ export default function Request({ inventoryItems, setItems }: Props) {
         console.error('Error en la finalización:', error);
         showErrorPopup('Ocurrió un error inesperado.');
     }
-};
+  };
+
 
   // Función para mostrar una ventana emergente de error
   const showErrorPopupFinalize = (message: string) => {
