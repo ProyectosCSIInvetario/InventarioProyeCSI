@@ -89,84 +89,105 @@ export default function Request({ inventoryItems, setItems }: Props) {
 
   const handleFinalize = async () => {
     try {
-      // Crear un conjunto de productos únicos
-      const uniqueProducts = [...new Set(items.map(item => item.code))];
+        const uniqueProducts = [...new Set(items.map(item => item.code))];
 
-      for (const code of uniqueProducts) {
-        // Calcular la cantidad total solicitada para ese producto
-        const totalRequestedQuantity = items
-          .filter(item => item.code === code)
-          .reduce((sum, item) => sum + item.quantity, 0);
+        for (const code of uniqueProducts) {
+            const totalRequestedQuantity = items
+                .filter(item => item.code === code)
+                .reduce((sum, item) => sum + item.quantity, 0);
 
-        // Obtener el inventario actual del producto
-        const { data: inventoryData, error: fetchError } = await supabase
-          .from('inventory')
-          .select('available_quantity, in_use')
-          .eq('code', code)
-          .single();
+            const { data: inventoryData, error: fetchError } = await supabase
+                .from('inventory')
+                .select('available_quantity, in_use')
+                .eq('code', code)
+                .single();
 
-        if (fetchError) {
-          console.error('Error obteniendo inventario:', fetchError);
-          showErrorPopupFinalize('Error al obtener inventario.');
-          return;
+            if (fetchError) {
+                showErrorPopupFinalize('Error al obtener inventario.');
+                return;
+            }
+
+            const { available_quantity, in_use } = inventoryData;
+
+            const { error: inventoryError } = await supabase
+                .from('inventory')
+                .update({
+                    available_quantity: available_quantity - totalRequestedQuantity,
+                    in_use: in_use + totalRequestedQuantity
+                })
+                .eq('code', code);
+
+            if (inventoryError) {
+                showErrorPopupFinalize('Error al actualizar el inventario.');
+                return;
+            }
+
+            // Procesar ubicaciones correctamente
+            const requestedItems = items.filter(item => item.code === code);
+            for (const requestedItem of requestedItems) {
+                // Comprobación precisa si la ubicación ya existe
+                const { data: existingLocation, error: locationFetchError } = await supabase
+                    .from('locations')
+                    .select('quantity')
+                    .eq('inventory_code', requestedItem.code)
+                    .eq('place', requestedItem.location);
+
+                if (locationFetchError) {
+                    showErrorPopupFinalize('Error al verificar la ubicación.');
+                    return;
+                }
+
+                if (existingLocation.length > 0) {
+                    // Si existe, actualizar la cantidad sumando
+                    const updatedQuantity = existingLocation[0].quantity + requestedItem.quantity;
+                    const { error: locationUpdateError } = await supabase
+                        .from('locations')
+                        .update({ quantity: updatedQuantity })
+                        .eq('inventory_code', requestedItem.code)
+                        .eq('place', requestedItem.location);
+
+                    if (locationUpdateError) {
+                        showErrorPopupFinalize('Error al actualizar la ubicación.');
+                        return;
+                    }
+                } else {
+                    // Si no existe, crear una nueva entrada
+                    const { error: locationInsertError } = await supabase
+                        .from('locations')
+                        .insert({
+                            inventory_code: requestedItem.code,
+                            place: requestedItem.location,
+                            quantity: requestedItem.quantity
+                        });
+
+                    if (locationInsertError) {
+                        showErrorPopupFinalize('Error al registrar la ubicación.');
+                        return;
+                    }
+                }
+            }
         }
 
-        const { available_quantity, in_use } = inventoryData;
+        await generatePDF();
+        showSuccessPopup('Productos actualizados y PDF generado con éxito.');
 
-        // Actualizar inventario UNA SOLA VEZ por producto
-        const { error: inventoryError } = await supabase
-          .from('inventory')
-          .update({
-            available_quantity: available_quantity - totalRequestedQuantity,
-            in_use: in_use + totalRequestedQuantity
-          })
-          .eq('code', code);
-
-        if (inventoryError) {
-          console.error('Error actualizando inventario:', inventoryError);
-          showErrorPopupFinalize('Error al actualizar el inventario.');
-          return;
-        }
-
-        // Insertar cada ubicación individualmente
-        const requestedItems = items.filter(item => item.code === code);
-        for (const requestedItem of requestedItems) {
-          const { error: locationError } = await supabase
-            .from('locations')
-            .insert({
-              inventory_code: requestedItem.code,
-              place: requestedItem.location,
-              quantity: requestedItem.quantity
-            });
-
-          if (locationError) {
-            console.error('Error registrando ubicación:', locationError);
-            showErrorPopupFinalize('Error al registrar la ubicación.');
-            return;
-          }
-        }
-      }
-
-      await generatePDF();
-      showSuccessPopup('Productos actualizados y PDF generado con éxito.');
-
-      setItems(prev => prev.map(item => {
-        const requestedItem = items.find(i => i.code === item.code);
-        if (requestedItem) {
-          return {
-            ...item,
-            availableQuantity: item.availableQuantity - requestedItem.quantity,
-            inUse: item.inUse + requestedItem.quantity
-          };
-        }
-        return item;
-      }));
+        setItems(prev => prev.map(item => {
+            const requestedItem = items.find(i => i.code === item.code);
+            if (requestedItem) {
+                return {
+                    ...item,
+                    availableQuantity: item.availableQuantity - requestedItem.quantity,
+                    inUse: item.inUse + requestedItem.quantity
+                };
+            }
+            return item;
+        }));
 
     } catch (error) {
-      console.error('Error en la finalización:', error);
-      showErrorPopup('Ocurrió un error inesperado.');
+        console.error('Error en la finalización:', error);
+        showErrorPopup('Ocurrió un error inesperado.');
     }
-  };
+};
 
   // Función para mostrar una ventana emergente de error
   const showErrorPopupFinalize = (message: string) => {

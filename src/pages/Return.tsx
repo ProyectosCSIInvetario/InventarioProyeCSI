@@ -148,9 +148,12 @@ export default function Return({ inventoryItems, setItems }: Props) {
         setMaxQuantity(0);
     };
    
-
-
     const handleConfirmReturn = async () => {
+        if (itemsToReturn.length === 0) {
+            showErrorPopup('La lista está vacía. Agrega productos antes de devolver.');
+            return;
+        }
+    
         try {
             for (const returnedItem of itemsToReturn) {
                 const { data: inventoryItem, error: fetchError } = await supabase
@@ -158,20 +161,20 @@ export default function Return({ inventoryItems, setItems }: Props) {
                     .select('*')
                     .eq('code', returnedItem.code)
                     .single();
-
+    
                 if (fetchError || !inventoryItem) {
                     showErrorPopup('Error al obtener los datos del producto.');
                     return;
                 }
-
+    
                 if (returnedItem.quantity > inventoryItem.in_use) {
                     showErrorPopup('No puedes devolver más de los productos en uso.');
                     return;
                 }
-
+    
                 const updatedAvailable = inventoryItem.available_quantity + returnedItem.quantity;
                 const updatedInUse = inventoryItem.in_use - returnedItem.quantity;
-
+    
                 const { error: inventoryError } = await supabase
                     .from('inventory')
                     .update({
@@ -179,38 +182,52 @@ export default function Return({ inventoryItems, setItems }: Props) {
                         in_use: updatedInUse
                     })
                     .eq('code', returnedItem.code);
-
+    
                 if (inventoryError) {
                     throw new Error('Error al actualizar el inventario.');
                 }
-
+    
                 const { data: locationData, error: locationError } = await supabase
                     .from('locations')
                     .select('quantity')
                     .eq('inventory_code', returnedItem.code)
                     .eq('place', returnedItem.location)
                     .single();
-
+    
                 if (locationError || !locationData) {
                     showErrorPopup('Error al obtener la ubicación.');
                     return;
                 }
-
+    
                 const updatedLocationQuantity = locationData.quantity - returnedItem.quantity;
-
-                const { error: locationUpdateError } = await supabase
-                    .from('locations')
-                    .update({ quantity: updatedLocationQuantity })
-                    .eq('inventory_code', returnedItem.code)
-                    .eq('place', returnedItem.location);
-
-                if (locationUpdateError) {
-                    throw new Error('Error al actualizar la ubicación.');
+    
+                if (updatedLocationQuantity <= 0) {
+                    // Elimina el registro si la cantidad es cero o menor
+                    const { error: deleteError } = await supabase
+                        .from('locations')
+                        .delete()
+                        .eq('inventory_code', returnedItem.code)
+                        .eq('place', returnedItem.location);
+    
+                    if (deleteError) {
+                        throw new Error('Error al eliminar la ubicación.');
+                    }
+                } else {
+                    // Actualiza la cantidad si es mayor que cero
+                    const { error: locationUpdateError } = await supabase
+                        .from('locations')
+                        .update({ quantity: updatedLocationQuantity })
+                        .eq('inventory_code', returnedItem.code)
+                        .eq('place', returnedItem.location);
+    
+                    if (locationUpdateError) {
+                        throw new Error('Error al actualizar la ubicación.');
+                    }
                 }
             }
-
+    
             showSuccessPopup('Productos devueltos correctamente.');
-
+    
             const { data: updatedInventory } = await supabase.from('inventory').select('*');
             setItems(updatedInventory);
             setItemsToReturn([]);
@@ -219,6 +236,7 @@ export default function Return({ inventoryItems, setItems }: Props) {
             showErrorPopup('Error al devolver productos.');
         }
     };
+    
 
     return (
         <div className="max-w-7xl mx-auto px-4 py-6">
