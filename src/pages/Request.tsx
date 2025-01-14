@@ -17,24 +17,31 @@ export default function Request({ inventoryItems, setItems }: Props) {
   const [quantity, setQuantity] = useState(1);
 
   const handleAddToList = () => {
-    // Verificar si falta algún campo
+    // Verificar si falta algún campo o cantidad inválida
     if (!code || !location || quantity < 1) {
-      showErrorPopup('Por favor complete todos los campos correctamente.');
-      return;
+        showErrorPopup('Por favor complete todos los campos correctamente.');
+        return;
     }
 
     // Verificar si el producto existe en el inventario
     const existingItem = inventoryItems.find(item => item.code === code);
     if (!existingItem) {
-      showErrorPopup('El producto no existe en el inventario.');
-      return;
+        showErrorPopup('El producto no existe en el inventario.');
+        return;
     }
 
+    // evitar solicitar más de lo disponible
+    if (quantity > existingItem.available_quantity) {
+        showErrorPopup(`No puedes solicitar más de los productos disponibles (${existingItem.available_quantity} disponibles).`);
+        return;
+    }
+
+    // Crear un nuevo ítem si pasa todas las validaciones
     const newItem: RequestItem = {
-      code,
-      item: existingItem,
-      quantity,
-      location,
+        code,
+        item: existingItem,
+        quantity,
+        location,
     };
 
     // Actualizar el estado con el nuevo ítem
@@ -42,7 +49,8 @@ export default function Request({ inventoryItems, setItems }: Props) {
     setCode('');
     setLocation('');
     setQuantity(1);
-  };
+};
+
 
   // Función para mostrar un error si algún campo falta o el producto no existe
   const showErrorPopup = (message: string) => {
